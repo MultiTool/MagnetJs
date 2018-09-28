@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style></style>
+
+<script>
+
+function TryRunning(){// First test if browser can support Javascript ES6 classes.
+  let ES6 = false;
+  try { 
+    eval('"use strict"; class foo{}'); 
+    ES6 = true;
+  } catch (e) {
+    var Message = "This browser does not support Javascript ES6 classes. <br/><br/> Try using a recent version of Chrome, Firefox, Edge or Safari.";
+    console.log(e);
+    var BodyNode = document.getElementById("BodyNode");
+    BodyNode.innerHTML = "<h1>"+Message+"</h1>";
+    ES6 = false;
+  }
+  if (ES6){
+   RunWorld();
+  }
+}
+
+</script>
+
+<script>
+
+{/** @author MultiTool */
+  const EarthRadiusMeters = 6371000.0;// 6,371 km 
+  const EarthSurfaceMagTeslas = 3.869e-5; // 3.869 microteslas (3.869 * 10 ^ -5); 
+  //const MoonOrbitRadiusMeters = 385000000;// 385,000 km.  We use the distance to the Moon as a stand-in for infinity (no longer used).
+  const EarthOrbitRadiusMeters = 149600000000;// 149.6 million km.  We use the distance to the Sun as a stand-in for infinity.
+  class Magnet {
+    /* *************************************************************************************************** */
+    constructor() {
+      this.SettlementRadiusMeters = 1000;// 1km radius,  StationSurfaceMagTeslas:0.246426490574692
+      this.EarthSurfaceToSunIntegral = this.InverseCubeIntegral(EarthRadiusMeters, EarthOrbitRadiusMeters);
+      PrintLine("EarthSurfaceToSunIntegral:"+ this.EarthSurfaceToSunIntegral);
+      
+      // Since Radius of Earth's field is defined from its core, we need to get a hypothetical field strength at Radius=0.
+      this.EarthCoreMagTeslas = EarthSurfaceMagTeslas * Math.pow(EarthRadiusMeters, 3.0);
+      PrintLine("EarthCoreMagTeslas:"+ this.EarthCoreMagTeslas);
+
+      // ProtectionMagIntegralTeslas = integral of field from Earth surface to Sun in teslas
+      this.ProtectionMagIntegralTeslas = this.EarthSurfaceToSunIntegral * this.EarthCoreMagTeslas;
+      PrintLine("ProtectionMagIntegralTeslas:"+ this.ProtectionMagIntegralTeslas);
+    }
+    /* *************************************************************************************************** */
+    CalcSettlementTeslas() {
+      // since integral(f(x) * A)  ==  integral(f(x)) * A, almost everything factors out of the integral and/or can be multiplied back in. 
+      let StationToSunIntegral = this.InverseCubeIntegral(this.SettlementRadiusMeters, EarthOrbitRadiusMeters);
+      PrintLine("StationToSunIntegral:"+ StationToSunIntegral);
+
+      let StationCoreMagTeslas = this.ProtectionMagIntegralTeslas / StationToSunIntegral; // hypothetical field strength at settlement Radius=0.
+      let StationSurfaceMagTeslas = StationCoreMagTeslas / Math.pow(this.SettlementRadiusMeters, 3.0);// then factor distance back in
+      PrintLine("StationSurfaceMagTeslas:"+ StationSurfaceMagTeslas);// << this is the answer!
+      if (isNaN(StationSurfaceMagTeslas)){
+        PrintResults("Infinity");
+      }else{
+        PrintResults(StationSurfaceMagTeslas.toFixed(8));
+      }
+      return StationSurfaceMagTeslas;
+    }
+    /* *************************************************************************************************** */
+    InverseCubeIntegral(FromVal, ToVal) {
+      //(B^2-A^2)/(2*A^2*B^2)// integral from A to B of 1/R^3 according to quickmath.com
+      let Asq = FromVal * FromVal;
+      let Bsq = ToVal * ToVal;
+      let Area = (Bsq - Asq) / (2.0 * Asq * Bsq);
+      return Area;
+    }
+    /* *************************************************************************************************** */
+    EarthFieldStrengthTeslas(DistanceErads, Latitude) {// idealized strength of Earth's field at any distance or latitude
+      // This function is not used now, but was helpful in verifying other math in the setup
+      // An 'Erad' is 1 earth-radius distance unit.  Latitude is degrees from Earth equator (of course)
+      // Full formula with latitude from equator of ring, from https://en.wikipedia.org/wiki/Dipole_model_of_the_Earth%27s_magnetic_field
+      let FieldStrengthTeslas = (EarthSurfaceMagTeslas / Math.pow(DistanceErads, 3.0)) * Math.sqrt(1.0 + 3.0 * Math.pow(Math.sin(Latitude), 2.0));
+      return FieldStrengthTeslas;
+    }
+  } // end of Magnet class
+  /* *************************************************************************************************** */
+  function ChangeStationRadius(Value){
+    MagnetGlobal.SettlementRadiusMeters = Value;
+    MagnetGlobal.CalcSettlementTeslas();
+  }
+  /* *************************************************************************************************** */
+  function RunWorld(){
+    CreateWidgets();
+    MagnetGlobal.CalcSettlementTeslas();
+  }
+  /* *************************************************************************************************** */
+  function CreateWidgets() {
+    let slider;
+    let StationRadiusTextNode = document.getElementById("StationRadiusText");
+
+    slider = document.getElementById("SettlementRadiusRange");
+    slider.value = MagnetGlobal.SettlementRadiusMeters;
+    StationRadiusTextNode.innerHTML = slider.value + " Meters";
+    slider.oninput = function() {
+      ChangeStationRadius(this.value);
+      StationRadiusTextNode.innerHTML = this.value + " Meters";
+    }
+  }
+  /* *************************************************************************************************** */
+  function PrintResults(Text){
+    let SettlementMagTeslasText = document.getElementById("SettlementMagTeslasText");
+    if (Text!==undefined && Text!==null){
+      SettlementMagTeslasText.innerHTML = Text;
+    }else{
+      SettlementMagTeslasText.innerHTML = "";
+    }
+  }
+  /* *************************************************************************************************** */
+  function PrintLine(Text){
+    if (Text!==undefined && Text!==null){
+      console.log(Text);
+    }else{
+      console.log("");
+    }
+  }
+  let MagnetGlobal = new Magnet();
+}
+
+</script>
+
+<style>
+body{
+  font-family: Arial, Helvetica, sans-serif; 
+  /* color:white; background-color:#000000; */
+  /* background-image:url('ring_lines01_cropped.png'); background-repeat: no-repeat; background-position: center top; background-size:100%; */
+}
+
+#RingImage {
+    width:70%;
+    margin-top:10px; 
+    border-style: solid;
+    border-color: grey;
+    border-top-width:2px;
+    border-bottom-width:2px;
+    border-left-width:0px;
+    border-right-width:0px;
+    background-color:#000000; 
+}
+
+#SettlementMagTeslasText{
+  font-weight: bold; 
+}
+
+</style>
+
+</head>
+  <body id="BodyNode" onload="TryRunning()" >
+    <div align="center">
+      <!-- h2>Title</h2 -->
+      <div align="left" style="width:70%; margin-top:20px;">
+      Magnetic radiation shielding is an old idea, but it fits the shape of space settlements perfectly. 
+      The most habitable zone of a spinning settlement is a toroid, and the most habitable zone of a magnetic field -and its generator- also happen to be a toroid. 
+      </div>
+      <!-- div style="margin-top:40px; font-weight: bold; ">
+        <span >(Artwork)</span>
+      </div -->
+      <div id="RingImage">
+        <img style="width:100%;" src = "ring_lines_ink.png"/>
+      </div>
+      <div align="left" style="width:70%; margin-top:20px; ">
+      So here is a calculator to determine how strong a magnetic field you need to equal the radiation protection of the Earth's field: 
+      </div>
+      <div style="margin-top:10px; ">
+        <div>
+          <span>Settlement Radius (red line):</span>
+          <span><input id="SettlementRadiusRange" style="width:300px; " type="range" min="0" max="20000" value="100"></span>
+          <span id="StationRadiusText"></span>
+        </div>
+      </div>
+      <br/>
+      <div style="width:600px; margin-top:10px;" align="left">
+        <span></span> <span id="SettlementMagTeslasText"></span><span> Teslas required at settlement equator (green hoop) to equal radiation protection of Earth's magnetic field.</span>
+      </div>
+    </div>
+    <table style="width:100%; margin-top:40px; font-size:14px; ">
+      <tr>
+        <td>
+          Share and enjoy. Source code <a href="https://github.com/MultiTool/MagnetJs">here</a>
+        </td>
+        <td align="right">
+          Written in ES6 Javascript, which should work in every modern browser except IE.
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+
+
